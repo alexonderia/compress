@@ -58,8 +58,8 @@ docker compose -f docker-compose.yml up --build
 
 ### `POST /api/sections/dispatch`
 Принимает файл договора, сохраняет секции во внутренний volume (`/data/sections.json` и `/data/part_16.json`) и отправляет их в несколько сервисов.
-По умолчанию вызываются `http://192.168.3.63:10000/analyze`, `/api/sections/full` (контейнер `ai_legal`) и
-`http://192.168.3.63:10001/company`.
+По умолчанию вызываются `http://ai_econom:10000/analyze`, `/api/sections/full` (контейнер `ai_legal`) и
+`http://contract_extractor:8085/qa/docx?plan=default` в общей сети docker-compose.
 Для анализа подтягивается файл бюджета из volume (`BUDGET_FILE_PATH`, по умолчанию `/data/budget.xlsx`).
 Ответ содержит только результаты внешних сервисов в формате `{ "analyze": { ... }, "sections": { ... }, "company": { ... } }`
 

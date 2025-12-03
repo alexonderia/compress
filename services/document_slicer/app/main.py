@@ -59,10 +59,10 @@ async def broadcast(event: str, timestamp: float):
         await q.put(data)
 
 
-AI_ECONOM_SERVICE_URL = os.getenv("AI_ECONOM_SERVICE_URL", "http://ai_econom:8000/analyze")
+AI_ECONOM_SERVICE_URL = os.getenv("AI_ECONOM_SERVICE_URL", "http://ai_econom:10000/analyze")
 AI_LEGAL_SERVICE_URL = os.getenv("AI_LEGAL_SERVICE_URL", "http://ai_legal:8000/api/sections/full")
 CONTRACT_EXTRACTOR_URL = os.getenv(
-    "CONTRACT_EXTRACTOR_URL", "http://contract_extractor:8085/qa/docx?plan=default"
+    "CONTRACT_EXTRACTOR_URL", "http://contract_extractor:8085/qa/sections?plan=default"
 )
 
 HTTP_TIMEOUT = float(os.getenv("SERVICE_HTTP_TIMEOUT", "120"))
@@ -225,7 +225,7 @@ async def _call_ai_legal_service(client: httpx.AsyncClient, parts: Dict[str, str
     return result
 
 async def _call_contract_extractor_service(
-    client: httpx.AsyncClient, file_name: str, content_type: str, content: bytes
+    client: httpx.AsyncClient, parts: Dict[str, str]
 ) -> Dict[str, Any]:
     result: Dict[str, Any] = {
         "service": "contract_extractor",
@@ -235,17 +235,9 @@ async def _call_contract_extractor_service(
         "error": None,
     }
 
-    files = {
-        "file": (
-            file_name,
-            content,
-            content_type,
-        )
-    }
-
     try:
         response = await client.post(
-            CONTRACT_EXTRACTOR_URL, files=files, headers={"accept": "application/json"}
+            CONTRACT_EXTRACTOR_URL, json={"sections": parts}, headers={"accept": "application/json"}
         )
         result["status"] = response.status_code
         if response.status_code == 200:
@@ -259,7 +251,7 @@ async def _call_contract_extractor_service(
 
 @app.post("/api/sections/split")
 async def split_document(file: UploadFile = File(...)) -> JSONResponse:
-    file_name, content_type, content = await _read_upload_file(file)
+    file_name, _, content = await _read_upload_file(file)
     parts = _extract_parts(file_name, content)
     _persist_sections(parts)
     return JSONResponse(content=parts)
@@ -271,7 +263,7 @@ async def dispatch_sections(file: UploadFile = File(...)) -> JSONResponse:
     start = time.time()
     await broadcast("start", start)
 
-    file_name, content_type, content = await _read_upload_file(file)
+    file_name, _, content = await _read_upload_file(file)
     parts = _extract_parts(file_name, content)
     saved_paths = _persist_sections(parts)
 
@@ -281,7 +273,7 @@ async def dispatch_sections(file: UploadFile = File(...)) -> JSONResponse:
         )
         ai_legal_task = asyncio.create_task(_call_ai_legal_service(client, parts))
         contract_extractor_task = asyncio.create_task(
-            _call_contract_extractor_service(client, file_name, content_type, content)
+            _call_contract_extractor_service(client, parts)
         )
         service_results = await asyncio.gather(
             ai_econom_task, ai_legal_task, contract_extractor_task
@@ -290,7 +282,7 @@ async def dispatch_sections(file: UploadFile = File(...)) -> JSONResponse:
     responses: dict[str, Any] = {
         "ai_econom": None,
         "ai_legal": None,
-        "ai_sb": None,
+        "sb_ai": None,
         "contract_extractor": None,
     }
 
@@ -305,14 +297,14 @@ async def dispatch_sections(file: UploadFile = File(...)) -> JSONResponse:
             sb_payload = payload
             if isinstance(payload, dict):
                 contract_payload = payload.get("result", payload)
-                sb_payload = payload.get("sb_check", payload)
+                sb_payload = payload.get("sb_ai", payload)
 
             responses["contract_extractor"] = contract_payload
-            responses["ai_sb"] = sb_payload
+            responses["sb_ai"] = sb_payload
         else:
             responses[result["service"]] = payload
 
-    for key in ("ai_econom", "ai_legal", "ai_sb", "contract_extractor"):
+    for key in ("ai_econom", "ai_legal", "sb_ai", "contract_extractor"):
         if responses[key] is None:
             responses[key] = {}
 

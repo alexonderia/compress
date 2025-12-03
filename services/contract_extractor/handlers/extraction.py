@@ -146,7 +146,7 @@ async def _attach_sb_check(payload: Dict[str, Any]) -> Dict[str, Any]:
         except Exception as exc:  # pragma: no cover - defensive guard
             logging.exception("SB Check analysis failed: %s", exc)
 
-    payload["sb_check"] = sb_payload
+    payload["sb_ai"] = sb_payload
     return payload
 
 
@@ -176,7 +176,48 @@ async def qa_docx(file: UploadFile, plan: str):
     return qa_result
 
 
+def _normalize_sections_map(sections: Dict[str, Any]) -> Dict[str, str]:
+    if not sections:
+        raise HTTPException(status_code=400, detail="Provide non-empty sections payload")
+
+    if isinstance(sections, list):
+        return {f"part_{idx}": str(value) for idx, value in enumerate(sections)}
+
+    normalized: Dict[str, str] = {}
+    for key, value in sections.items():
+        if not isinstance(key, str):
+            raise HTTPException(status_code=400, detail="Section keys must be strings")
+        if value is None:
+            continue
+        normalized[key] = str(value)
+
+    if not normalized:
+        raise HTTPException(status_code=400, detail="No sections to process")
+
+    return normalized
+
+
+async def qa_sections(sections: Dict[str, Any], plan: str):
+    ensure_qa_service()
+
+    normalized_sections = _normalize_sections_map(sections)
+    queries = _load_qa_plan(plan)
+
+    try:
+        qa_result = await _run_queries(normalized_sections, queries)
+    except OllamaServiceError as exc:
+        logging.exception("Ollama service error during QA plan execution")
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    except Exception as exc:  # pragma: no cover
+        logging.exception("Unhandled error during QA plan execution")
+        raise HTTPException(status_code=500, detail="Internal processing error") from exc
+
+    await _attach_sb_check(qa_result)
+    return qa_result
+
+
 __all__ = [
     "qa_docx",
+    "qa_sections",
     "ensure_qa_service",
 ]
