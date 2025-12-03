@@ -4,12 +4,11 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any, Dict, List
 
-from fastapi import HTTPException, UploadFile
+from fastapi import HTTPException
 
 from ..app.core.config import CONFIG
 from ..app.services.ollama_client import OllamaServiceError
 from ..app.services.qa import SectionQuestionAnswering
-from ..app.services.utils import read_text_and_sections_from_upload
 
 APP_DIR = Path(__file__).resolve().parent.parent / "app"
 QA_SYSTEM_PROMPT_PATH = APP_DIR / "prompts" / "qa_system.txt"
@@ -146,25 +145,39 @@ async def _attach_sb_check(payload: Dict[str, Any]) -> Dict[str, Any]:
         except Exception as exc:  # pragma: no cover - defensive guard
             logging.exception("SB Check analysis failed: %s", exc)
 
-    payload["sb_check"] = sb_payload
+    payload["sb_ai"] = sb_payload
     return payload
 
 
-async def qa_docx(file: UploadFile, plan: str):
+def _normalize_sections_map(sections: Dict[str, Any]) -> Dict[str, str]:
+    if not sections:
+        raise HTTPException(status_code=400, detail="Provide non-empty sections payload")
+
+    if isinstance(sections, list):
+        return {f"part_{idx}": str(value) for idx, value in enumerate(sections)}
+
+    normalized: Dict[str, str] = {}
+    for key, value in sections.items():
+        if not isinstance(key, str):
+            raise HTTPException(status_code=400, detail="Section keys must be strings")
+        if value is None:
+            continue
+        normalized[key] = str(value)
+
+    if not normalized:
+        raise HTTPException(status_code=400, detail="No sections to process")
+
+    return normalized
+
+
+async def qa_sections(sections: Dict[str, Any], plan: str):
     ensure_qa_service()
 
-    if file is None:
-        raise HTTPException(status_code=400, detail="Provide a DOCX file")
-
-    text, sections = await read_text_and_sections_from_upload(file)
-    if sections is None:
-        sections = [text]
-
-    sections_map = {f"part_{idx}": section for idx, section in enumerate(sections)}
-
+    normalized_sections = _normalize_sections_map(sections)
     queries = _load_qa_plan(plan)
+
     try:
-        qa_result = await _run_queries(sections_map, queries)
+        qa_result = await _run_queries(normalized_sections, queries)
     except OllamaServiceError as exc:
         logging.exception("Ollama service error during QA plan execution")
         raise HTTPException(status_code=502, detail=str(exc)) from exc
@@ -177,6 +190,6 @@ async def qa_docx(file: UploadFile, plan: str):
 
 
 __all__ = [
-    "qa_docx",
+    "qa_sections",
     "ensure_qa_service",
 ]
