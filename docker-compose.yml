@@ -1,0 +1,94 @@
+services:
+  # --- Контрактный экстрактор ---
+  contract-extractor-api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: contract-extractor-api-merge
+    environment:
+      - MODEL=${MODEL:-qwen3:14b}
+      - TEMPERATURE=${TEMPERATURE:-0.1}
+      - MAX_TOKENS=${MAX_TOKENS:-1024}
+      - OLLAMA_HOST=http://ollama_android:11434
+      - NUMERIC_TOLERANCE=${NUMERIC_TOLERANCE:-0.01}
+      - USE_LLM=${USE_LLM:-true}
+      - API_PORT=${API_PORT:-8085}
+    command: uvicorn app.main:app --host 0.0.0.0 --port 8085 --reload --log-level info
+    ports:
+      - "${API_PORT:-8085}:8085"
+    healthcheck:
+      test: ["CMD-SHELL", "curl -fsS http://127.0.0.1:8085/healthz >/dev/null || exit 1"]
+      interval: 15s
+      timeout: 5s
+      retries: 20
+    restart: unless-stopped
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+    networks:
+      - ollama-1c
+
+  # --- Резак документов ---
+  document_slicer:
+    build: ./api/app/services/document_slicer
+    container_name: document_slicer
+    ports:
+      - "8090:8000"
+    restart: unless-stopped
+    volumes:
+      - data:/data
+
+  # --- Юридический LLM API ---
+  ai_legal:
+    build: ./api/app/services/AI_legal
+    container_name: ai_legal
+    environment:
+      - OLLAMA_BASE_URL=http://ollama_android:11434
+      - OLLAMA_MODEL=qwen3:14b
+    networks:
+      - ollama-1c
+    ports:
+      - "8092:8000"
+    restart: unless-stopped
+
+  # --- Админ-панель ---
+  admin-panel:
+    build:
+      context: ./api/app/services/admin-panel
+      args:
+        # Внутри docker-сети ходим по именам сервисов, а не по localhost
+        VITE_SLICER_API_BASE_URL: http://localhost:8090
+        VITE_AI_LEGAL_API_BASE_URL: http://localhost:8092
+    container_name: admin-panel
+    environment:
+      - VITE_SLICER_API_BASE_URL=http://localhost:8090
+      - VITE_AI_LEGAL_API_BASE_URL=http://localhost:8092
+    ports:
+      - "8091:80"
+    restart: unless-stopped
+    depends_on:
+      - document_slicer
+      - ai_legal
+
+  # --- Экономический анализ (ai_economist / purchase-api) ---
+  purchase-api:
+    build: ./api/app/services/ai_economist
+    container_name: purchase-analysis-api-merge
+    ports:
+      - "10000:10000"
+    environment:
+      - OLLAMA_HOST=ollama_android    # имя контейнера ollama в сети ollama-1c
+      - OLLAMA_PORT=11434
+      - OLLAMA_MODEL=qwen2.5vl:32b
+    networks:
+      - ollama-1c
+    volumes:
+      # путь скорректирован относительно корня проекта
+      - ./api/app/services/ai_economist/data:/app/data
+    restart: unless-stopped
+
+volumes:
+  data:
+
+networks:
+  ollama-1c:
+    external: true

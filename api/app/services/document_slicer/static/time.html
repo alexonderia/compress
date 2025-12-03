@@ -1,0 +1,204 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+  <meta charset="UTF-8" />
+  <title>Таймер обработки запроса</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+
+  <style>
+    body {
+      margin: 0;
+      font-family: "Inter", system-ui, -apple-system, sans-serif;
+      background: #f6f7fb;
+      color: #0f172a;
+      display: flex;
+      justify-content: center;
+      padding: 32px;
+    }
+
+    .container {
+      width: 100%;
+      max-width: 720px;
+      background: white;
+      border-radius: 16px;
+      padding: 24px;
+      box-shadow: 0 10px 30px rgba(15, 23, 42, 0.08);
+    }
+
+    h1 {
+      margin: 0;
+      font-size: 24px;
+      font-weight: 700;
+    }
+
+    p.subtitle {
+      margin-top: 6px;
+      color: #475569;
+      font-size: 15px;
+    }
+
+    /* ===== CLOCK ===== */
+
+    .clock {
+      width: 140px;
+      height: 140px;
+      display: grid;
+      place-items: center;
+      margin: 0 auto 16px auto;
+    }
+
+    .clock__face {
+      width: 100%;
+      height: 100%;
+      border-radius: 50%;
+      position: relative;
+      background: radial-gradient(circle at 30% 30%, #ffffff, #f1f5f9);
+      border: 2px solid #e2e8f0;
+      box-shadow:
+        0 8px 20px rgba(0, 0, 0, 0.06),
+        inset 0 2px 4px rgba(255, 255, 255, 0.6),
+        inset 0 -2px 5px rgba(0, 0, 0, 0.05);
+    }
+
+    .clock__center {
+      position: absolute;
+      width: 10px;
+      height: 10px;
+      background: #0f172a;
+      border-radius: 50%;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+    }
+
+    .clock__hand {
+      position: absolute;
+      width: 3px;
+      left: 50%;
+      top: 50%;
+      transform-origin: 50% 100%;
+      transform: translateX(-50%) translateY(-100%) rotate(0deg);
+      border-radius: 4px;
+      background: #0f172a;
+    }
+
+    .clock__hand--minute {
+      height: 36%;
+      animation: rotate-minute 8s linear infinite;
+    }
+
+    .clock__hand--second {
+      height: 46%;
+      background: #2563eb;
+      box-shadow: 0 0 6px rgba(37, 99, 235, 0.6);
+      animation: rotate-second 1.8s linear infinite;
+    }
+
+    .clock.paused .clock__hand {
+      animation-play-state: paused !important;
+    }
+
+    @keyframes rotate-minute {
+      from { transform: translateX(-50%) translateY(-100%) rotate(0deg); }
+      to   { transform: translateX(-50%) translateY(-100%) rotate(360deg); }
+    }
+
+    @keyframes rotate-second {
+      from { transform: translateX(-50%) translateY(-100%) rotate(0deg); }
+      to   { transform: translateX(-50%) translateY(-100%) rotate(360deg); }
+    }
+
+    .time {
+      font-size: 38px;
+      text-align: center;
+      letter-spacing: 0.03em;
+    }
+
+    .hint {
+      text-align: center;
+      color: #475569;
+      margin-top: 6px;
+      margin-bottom: 20px;
+    }
+  </style>
+</head>
+
+<body>
+
+<div class="container">
+  <h1>Таймер обработки</h1>
+  <p class="subtitle">Автоматически запускается при начале обработки и останавливается при завершении</p>
+
+  <!-- CLOCK -->
+  <div id="clock" class="clock paused">
+    <div class="clock__face">
+      <div class="clock__hand clock__hand--minute"></div>
+      <div class="clock__hand clock__hand--second"></div>
+      <div class="clock__center"></div>
+    </div>
+  </div>
+
+  <div id="time" class="time">00:00.000</div>
+</div>
+
+<script>
+  // URL document_slicer
+  const SSE_URL = "http://localhost:8090/api/timer/events";
+
+  const timeEl = document.getElementById("time");
+  const clockEl = document.getElementById("clock");
+
+  let startedAtLocal = null;
+  let rafId = null;
+
+  function formatTime(ms) {
+    const totalSeconds = Math.floor(ms / 1000);
+    const minutes = String(Math.floor(totalSeconds / 60)).padStart(2, '0');
+    const seconds = String(totalSeconds % 60).padStart(2, '0');
+    const milliseconds = String(Math.floor(ms % 1000)).padStart(3, '0');
+    return `${minutes}:${seconds}.${milliseconds}`;
+  }
+
+  function tick(ts) {
+    if (!startedAtLocal) return;
+    timeEl.textContent = formatTime(ts - startedAtLocal);
+    rafId = requestAnimationFrame(tick);
+  }
+
+  function startTimer() {
+    startedAtLocal = performance.now();
+    clockEl.classList.remove("paused");
+    rafId = requestAnimationFrame(tick);
+  }
+
+  function stopTimer(serverDurationMs) {
+    if (rafId) cancelAnimationFrame(rafId);
+    clockEl.classList.add("paused");
+
+    timeEl.textContent = formatTime(serverDurationMs);
+    startedAtLocal = null;
+  }
+
+  // Подключение SSE
+  const ev = new EventSource(SSE_URL);
+
+  let serverStart = null;
+
+  ev.addEventListener("start", (e) => {
+    serverStart = Number(e.data) * 1000;  // timestamp → ms
+    startTimer();
+  });
+
+  ev.addEventListener("stop", (e) => {
+    const serverStop = Number(e.data) * 1000;
+    const duration = serverStop - serverStart;
+    stopTimer(duration);
+  });
+
+  ev.onerror = () => {
+    console.warn("SSE error");
+  };
+</script>
+
+</body>
+</html>

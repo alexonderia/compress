@@ -1,0 +1,1 @@
+export type Page = 'home' | 'slicer' | 'ai-legal';
