@@ -64,6 +64,16 @@ AI_LEGAL_SERVICE_URL = os.getenv("AI_LEGAL_SERVICE_URL", "http://ai_legal:8000/a
 CONTRACT_EXTRACTOR_URL = os.getenv(
     "CONTRACT_EXTRACTOR_URL", "http://contract_extractor:8085/qa/sections?plan=default"
 )
+CONTRACT_EXTRACTOR_SECTIONS = [
+    "part_4",
+    "part_5",
+    "part_6",
+    "part_7",
+    "part_11",
+    "part_12",
+    "part_15",
+    "part_16",
+]
 
 HTTP_TIMEOUT = float(os.getenv("SERVICE_HTTP_TIMEOUT", "120"))
 DATA_VOLUME_PATH = Path(os.getenv("DATA_VOLUME_PATH", "/data"))
@@ -90,6 +100,10 @@ def _serialize_parts(sections: list[SectionChunk], blocks_html: str) -> dict[str
 
     payload["part_16"] = blocks_html
     return payload
+
+
+def _select_contract_sections(parts: dict[str, str]) -> dict[str, str]:
+    return {key: parts.get(key, "") for key in CONTRACT_EXTRACTOR_SECTIONS}
 
 
 def _extract_specification_text(blocks: list[Any]) -> str:
@@ -237,7 +251,9 @@ async def _call_contract_extractor_service(
 
     try:
         response = await client.post(
-            CONTRACT_EXTRACTOR_URL, json={"sections": parts}, headers={"accept": "application/json"}
+            CONTRACT_EXTRACTOR_URL,
+            json={"sections": _select_contract_sections(parts)},
+            headers={"accept": "application/json"},
         )
         result["status"] = response.status_code
         if response.status_code == 200:

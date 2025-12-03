@@ -1,9 +1,9 @@
-from fastapi import APIRouter, File, Query, UploadFile
+from fastapi import APIRouter, Query
 from pydantic import BaseModel
 
 from typing import Any
 
-from ..handlers.extraction import ensure_qa_service, qa_docx, qa_sections
+from ..handlers.extraction import ensure_qa_service, qa_sections
 
 
 class SectionsPayload(BaseModel):
@@ -15,11 +15,6 @@ router = APIRouter()
 @router.get("/healthz")
 async def healthz():
     return {"status": "ok"}
-
-
-@router.post("/qa/docx")
-async def qa_docx_route(file: UploadFile = File(...), plan: str = Query("default")):
-    return await qa_docx(file, plan)
 
 
 @router.post("/qa/sections")
