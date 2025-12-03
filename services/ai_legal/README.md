@@ -10,5 +10,5 @@
 ## Интеграция с Ollama
 - переменные окружения:
   - `OLLAMA_HOST` — адрес Ollama API (по умолчанию `http://localhost:11434`).
-  - `OLLAMA_MODEL` — имя модели (по умолчанию `llama3`).
+  - `OLLAMA_MODEL` — имя модели (по умолчанию `qwen3:14b`).
 - сервис обращается к `/api/chat`, просит модель вернуть JSON с ключами `overall_score`, `summary`, `risks`, `red_flags`, `inaccuracy`. Ответ сохраняется в `ai_summary`, `ai_risks`, `ai_raw_response`, `overall_score`, `inaccuracy`, `red_flags`.

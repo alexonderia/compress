@@ -39,9 +39,9 @@ services:
       - ollama_ext
     networks:
       - app-network
-  ai_legal:
+  ai_legal_api:
     build: ./services/ai_legal
-    container_name: ai_legal
+    container_name: ai_legal_api
     environment:
       - OLLAMA_BASE_URL=http://ollama_ext:11434
       - OLLAMA_MODEL=${AI_LEGAL_MODEL:-qwen3:14b}
@@ -53,9 +53,9 @@ services:
     networks:
       - app-network
 
-  document_slicer:
+  document_slicer_api:
     build: ./services/document_slicer
-    container_name: document_slicer
+    container_name: document_slicer_api
     environment:
       - AI_ECONOM_SERVICE_URL=http://ai_econom:10000/analyze
       - AI_LEGAL_SERVICE_URL=http://ai_legal:8000/api/sections/full
@@ -68,26 +68,23 @@ services:
     restart: unless-stopped
     depends_on:
       - ai_econom
-      - ai_legal
+      - ai_legal_api
       - contract_extractor
     networks:
       - app-network
-  admin-panel:
+  admin-panel_api:
     build:
-    context: ./services/admin-panel
-    args:
-      VITE_SLICER_API_BASE_URL: http://localhost:8090
-      VITE_AI_LEGAL_API_BASE_URL: http://localhost:8092
-    container_name: admin-panel
+      context: ./services/admin-panel
+      args:
+        VITE_SLICER_API_BASE_URL: http://localhost:8090
+        VITE_AI_LEGAL_API_BASE_URL: http://localhost:8092
+    container_name: admin-panel_api
     environment:
       - VITE_SLICER_API_BASE_URL=http://localhost:8090
       - VITE_AI_LEGAL_API_BASE_URL=http://localhost:8092
     ports:
       - "8091:80"
     restart: unless-stopped
-    depends_on:
-      - document_slicer
-      - ai_legal
     networks:
       - app-network
   ollama_ext:

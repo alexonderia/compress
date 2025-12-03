@@ -62,7 +62,7 @@ async def broadcast(event: str, timestamp: float):
 AI_ECONOM_SERVICE_URL = os.getenv("AI_ECONOM_SERVICE_URL", "http://ai_econom:10000/analyze")
 AI_LEGAL_SERVICE_URL = os.getenv("AI_LEGAL_SERVICE_URL", "http://ai_legal:8000/api/sections/full")
 CONTRACT_EXTRACTOR_URL = os.getenv(
-    "CONTRACT_EXTRACTOR_URL", "http://contract-extractor:8085/qa/docx?plan=default"
+    "CONTRACT_EXTRACTOR_URL", "http://contract_extractor:8085/qa/docx?plan=default"
 )
 
 HTTP_TIMEOUT = float(os.getenv("SERVICE_HTTP_TIMEOUT", "120"))

@@ -12,14 +12,14 @@ app = FastAPI(title="Purchase Analysis API")
 # Конфигурация
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "ollama_ext")
 OLLAMA_PORT = os.getenv("OLLAMA_PORT", "11434")
-OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5vl:32b")
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen3:14b")
 
 # Путь к папке data
-DATA_DIR = Path("data")
-DATA_DIR.mkdir(exist_ok=True)
+THIS_FILE = Path(__file__).resolve()
+AI_ECONOM_DIR = THIS_FILE.parents[0]
 
 # Путь к файлу budget.json
-BUDGET_FILE = DATA_DIR / "budget.json"
+BUDGET_FILE = AI_ECONOM_DIR / "data" / "budget.json"
 
 LLM_CONFIG = {
     "url": f"http://{OLLAMA_HOST}:{OLLAMA_PORT}/api/chat",

@@ -12,7 +12,7 @@ app = FastAPI(title="Purchase Analysis API")
 # Конфигурация
 OLLAMA_HOST = os.getenv("OLLAMA_HOST", "ollama_ext")
 OLLAMA_PORT = os.getenv("OLLAMA_PORT", "11434")
-OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen2.5vl:32b")
+OLLAMA_MODEL = os.getenv("OLLAMA_MODEL", "qwen3:14b")
 
 # Путь к папке data
 DATA_DIR = Path("data")
