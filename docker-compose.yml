@@ -1,15 +1,12 @@
 services:
-  # --- Контрактный экстрактор ---
-  contract-extractor-api:
-    build:
-      context: .
-      dockerfile: Dockerfile
-    container_name: contract-extractor-api-merge
+  contract_extractor:
+    build: ./services/contract_extractor
+    container_name: contract_extractor
     environment:
       - MODEL=${MODEL:-qwen3:14b}
       - TEMPERATURE=${TEMPERATURE:-0.1}
       - MAX_TOKENS=${MAX_TOKENS:-1024}
-      - OLLAMA_HOST=http://ollama_android:11434
+      - OLLAMA_HOST=http://ollama_ext:11434
       - NUMERIC_TOLERANCE=${NUMERIC_TOLERANCE:-0.01}
       - USE_LLM=${USE_LLM:-true}
       - API_PORT=${API_PORT:-8085}
@@ -22,42 +19,65 @@ services:
       timeout: 5s
       retries: 20
     restart: unless-stopped
-    extra_hosts:
-      - "host.docker.internal:host-gateway"
+    depends_on:
+      - ollama_ext
     networks:
-      - ollama-1c
-
-  # --- Резак документов ---
-  document_slicer:
-    build: ./api/app/services/document_slicer
-    container_name: document_slicer
+      - app-network
+  ai_econom:
+    build: ./services/ai_econom
+    container_name: ai_econom
+    environment:
+      - OLLAMA_HOST=ollama_ext
+      - OLLAMA_PORT=11434
+      - OLLAMA_MODEL=${AI_ECON_OLLAMA_MODEL:-qwen2.5vl:32b}
     ports:
-      - "8090:8000"
-    restart: unless-stopped
+      - "10000:10000"
     volumes:
-      - data:/data
-
-  # --- Юридический LLM API ---
+       - ./services/ai_econom/data:/app/data
+    restart: unless-stopped
+    depends_on:
+      - ollama_ext
+    networks:
+      - app-network
   ai_legal:
-    build: ./api/app/services/AI_legal
+    build: ./services/ai_legal
     container_name: ai_legal
     environment:
-      - OLLAMA_BASE_URL=http://ollama_android:11434
-      - OLLAMA_MODEL=qwen3:14b
-    networks:
-      - ollama-1c
+      - OLLAMA_BASE_URL=http://ollama_ext:11434
+      - OLLAMA_MODEL=${AI_LEGAL_MODEL:-qwen3:14b}
     ports:
       - "8092:8000"
     restart: unless-stopped
+    depends_on:
+      - ollama_ext
+    networks:
+      - app-network
 
-  # --- Админ-панель ---
+  document_slicer:
+    build: ./services/document_slicer
+    container_name: document_slicer
+    environment:
+      - AI_ECONOM_SERVICE_URL=http://ai_econom:10000/analyze
+      - AI_LEGAL_SERVICE_URL=http://ai_legal:8000/api/sections/full
+      - CONTRACT_EXTRACTOR_URL=http://contract_extractor:8085/qa/docx?plan=default
+      - SERVICE_HTTP_TIMEOUT=${SERVICE_HTTP_TIMEOUT:-120}
+    ports:
+      - "8090:8000"
+    volumes:
+      - document_data:/data
+    restart: unless-stopped
+    depends_on:
+      - ai_econom
+      - ai_legal
+      - contract_extractor
+    networks:
+      - app-network
   admin-panel:
     build:
-      context: ./api/app/services/admin-panel
-      args:
-        # Внутри docker-сети ходим по именам сервисов, а не по localhost
-        VITE_SLICER_API_BASE_URL: http://localhost:8090
-        VITE_AI_LEGAL_API_BASE_URL: http://localhost:8092
+    context: ./services/admin-panel
+    args:
+      VITE_SLICER_API_BASE_URL: http://localhost:8090
+      VITE_AI_LEGAL_API_BASE_URL: http://localhost:8092
     container_name: admin-panel
     environment:
       - VITE_SLICER_API_BASE_URL=http://localhost:8090
@@ -68,27 +88,23 @@ services:
     depends_on:
       - document_slicer
       - ai_legal
-
-  # --- Экономический анализ (ai_economist / purchase-api) ---
-  purchase-api:
-    build: ./api/app/services/ai_economist
-    container_name: purchase-analysis-api-merge
-    ports:
-      - "10000:10000"
-    environment:
-      - OLLAMA_HOST=ollama_android    # имя контейнера ollama в сети ollama-1c
-      - OLLAMA_PORT=11434
-      - OLLAMA_MODEL=qwen2.5vl:32b
     networks:
-      - ollama-1c
+      - app-network
+  ollama_ext:
+    image: ollama/ollama:latest
+    container_name: ollama_ext
+    ports:
+      - "11434:11434"
     volumes:
-      # путь скорректирован относительно корня проекта
-      - ./api/app/services/ai_economist/data:/app/data
+       - ollama_data:/root/.ollama
     restart: unless-stopped
+    networks:
+      - app-network
 
 volumes:
-  data:
+  document_data:
+  ollama_data:
 
 networks:
-  ollama-1c:
-    external: true
+  app-network:
+    driver: bridge

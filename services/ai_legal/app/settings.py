@@ -9,7 +9,7 @@ from pydantic import Field
 
 class Settings(BaseSettings):
     ollama_base_url: str = Field(
-        default="http://ollama:11434",
+        default="http://ollama_ext:11434",
         description="Базовый URL Ollama",
         alias="OLLAMA_BASE_URL",
     )
