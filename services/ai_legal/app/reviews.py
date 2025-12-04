@@ -147,9 +147,12 @@ def _normalize_reviews(
     for index, item in enumerate(padded_items):
         fallback_title = titles[index] if index < len(titles) else f"Раздел {index + 1}"
         title = str(item.get("title") or fallback_title)
-        resume = str(item.get("resume") or "").strip()
-        risks = str(item.get("risks") or "").strip()
-        score = str(item.get("score") or "").strip()
+        resume_raw = str(item.get("resume") or "").strip()
+        risks_raw = str(item.get("risks") or "").strip()
+        score_raw = str(item.get("score") or "").strip()
+        resume = resume_raw or "Информации недостаточно"
+        risks = risks_raw or "Риски не выявлены"
+        score = score_raw or "5"
         number = None
         if numbers and index < len(numbers):
             number = numbers[index]
