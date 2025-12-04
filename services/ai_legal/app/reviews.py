@@ -27,6 +27,20 @@ _SYSTEM_PROMPT = (
 )
 
 
+def _build_alignment_instruction(titles: list[str]) -> str:
+    ordered_titles = ", ".join(titles)
+    sections_count = len(titles)
+    return (
+        "Ты должен вернуть разделы в том же порядке, что и во входных данных. "
+        f"Всего разделов (включая шапку и спецификацию) — {sections_count}. "
+        f"Порядок разделов: {ordered_titles}. "
+        "Ответ json должен содержать ключ sections с массивом ровно из этого количества элементов. "
+        "Если по разделу нет информации, всё равно заполни его: resume — 'Информации недостаточно',"
+        " risks — 'Риски не выявлены', score — '5'. "
+        "Резюме и риски должны быть максимально лаконичными (не более 2 предложений на поле)."
+    )
+
+
 def _parse_titles(source: str) -> list[str]:
     pattern = re.compile(r"^(Шапка|Раздел\s+\d+|Спецификация):", re.MULTILINE)
     titles: list[str] = []
@@ -317,6 +331,7 @@ async def evaluate_section_file(
     titles = expected_titles or _parse_titles(content)
     messages = [
         {"role": "system", "content": _SYSTEM_PROMPT},
+        {"role": "system", "content": _build_alignment_instruction(titles)},
         {"role": "user", "content": content},
     ]
 
