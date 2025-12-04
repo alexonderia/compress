@@ -146,19 +146,6 @@ def _iter_contract_extractor_urls() -> list[str]:
     return urls
 
 
-def _iter_contract_extractor_urls() -> list[str]:
-    raw_urls = os.getenv("CONTRACT_EXTRACTOR_URLS", "")
-    explicit_urls = [url.strip() for url in raw_urls.split(",") if url.strip()]
-
-    urls: list[str] = []
-
-    for candidate in explicit_urls + [CONTRACT_EXTRACTOR_URL, CONTRACT_EXTRACTOR_FALLBACK_URL]:
-        if candidate and candidate not in urls:
-            urls.append(candidate)
-
-    return urls
-
-
 def _extract_specification_text(blocks: list[Any]) -> str:
     try:
         spec_result = extract_specification_from_blocks(blocks)
