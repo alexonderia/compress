@@ -118,6 +118,7 @@ async def _run_queries(sections_map: Dict[str, str], queries: List[Dict[str, Any
 async def _attach_sb_check(payload: Dict[str, Any]) -> Dict[str, Any]:
     sb_payload = {
         "status": 0,
+        "status_reason": "seller not provided",
         "company_name": "",
         "globas_score": None,
         "good_count": 0,
@@ -132,6 +133,8 @@ async def _attach_sb_check(payload: Dict[str, Any]) -> Dict[str, Any]:
         seller_name = None
 
     if seller_name and isinstance(seller_name, str) and seller_name.strip():
+        sb_payload["company_name"] = seller_name
+        sb_payload["status_reason"] = "seller not found"
         try:
             from ..app.services.sb_check_service import get_sb_check_service
 
@@ -140,6 +143,7 @@ async def _attach_sb_check(payload: Dict[str, Any]) -> Dict[str, Any]:
 
             sb_payload = {
                 "status": 1,
+                "status_reason": "seller matched",
                 "company_name": sb_result.company_name,
                 "globas_score": sb_result.globas_score,
                 "good_count": sb_result.good_count,
@@ -149,6 +153,7 @@ async def _attach_sb_check(payload: Dict[str, Any]) -> Dict[str, Any]:
 
         except ValueError:
             logging.warning("SB Check: company '%s' not found", seller_name)
+            sb_payload["status"] = -1
         except Exception as exc:  # pragma: no cover - defensive guard
             logging.exception("SB Check analysis failed: %s", exc)
 

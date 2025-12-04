@@ -67,6 +67,11 @@ CONTRACT_EXTRACTOR_URL = os.getenv(
     "CONTRACT_EXTRACTOR_URL", "http://contract_extractor:8085/qa/sections?plan=default"
 )
 CONTRACT_EXTRACTOR_FALLBACK_URL = "http://localhost:8085/qa/sections?plan=default"
+CONTRACT_EXTRACTOR_LOCAL_DEV_URL = (
+    os.getenv("CONTRACT_EXTRACTOR_LOCAL_DEV_URL")
+    or "http://contract_extractor:8000/qa/sections?plan=default"
+)
+CONTRACT_EXTRACTOR_LOCALHOST_DEV_URL = "http://localhost:8000/qa/sections?plan=default"
 CONTRACT_EXTRACTOR_SECTIONS = [
     "part_4",
     "part_5",
@@ -119,7 +124,26 @@ def _serialize_parts(sections: list[SectionChunk], blocks_html: str) -> dict[str
 
 
 def _select_contract_sections(parts: dict[str, str]) -> dict[str, str]:
-    return {key: parts.get(key, "") for key in CONTRACT_EXTRACTOR_SECTIONS}
+    selected = {key: parts.get(key, "").strip() for key in CONTRACT_EXTRACTOR_SECTIONS}
+    return {key: value for key, value in selected.items() if value}
+
+
+def _iter_contract_extractor_urls() -> list[str]:
+    raw_urls = os.getenv("CONTRACT_EXTRACTOR_URLS", "")
+    explicit_urls = [url.strip() for url in raw_urls.split(",") if url.strip()]
+
+    urls: list[str] = []
+
+    for candidate in explicit_urls + [
+        CONTRACT_EXTRACTOR_URL,
+        CONTRACT_EXTRACTOR_FALLBACK_URL,
+        CONTRACT_EXTRACTOR_LOCAL_DEV_URL,
+        CONTRACT_EXTRACTOR_LOCALHOST_DEV_URL,
+    ]:
+        if candidate and candidate not in urls:
+            urls.append(candidate)
+
+    return urls
 
 
 def _iter_contract_extractor_urls() -> list[str]:
@@ -298,7 +322,13 @@ async def _call_contract_extractor_service(
     }
 
     errors: list[str] = []
-    payload = {"sections": _select_contract_sections(parts)}
+    contract_sections = _select_contract_sections(parts)
+
+    if not contract_sections:
+        result["error"] = "No contract sections available for extraction"
+        return result
+
+    payload = {"sections": contract_sections}
 
     for url in _iter_contract_extractor_urls():
         result["url"] = url
