@@ -60,7 +60,9 @@ async def broadcast(event: str, timestamp: float):
 
 
 AI_ECONOM_SERVICE_URL = os.getenv("AI_ECONOM_SERVICE_URL", "http://ai_econom:10000/analyze")
-AI_LEGAL_SERVICE_URL = os.getenv("AI_LEGAL_SERVICE_URL", "http://ai_legal:8000/api/sections/full")
+AI_LEGAL_SERVICE_URL = os.getenv(
+    "AI_LEGAL_SERVICE_URL", "http://ai_legal:8000/api/sections/full-prepared"
+)
 CONTRACT_EXTRACTOR_URL = os.getenv(
     "CONTRACT_EXTRACTOR_URL", "http://contract_extractor:8085/qa/sections?plan=default"
 )
@@ -91,12 +93,22 @@ def _section_to_text(section: SectionChunk) -> str:
 
 
 def _serialize_parts(sections: list[SectionChunk], blocks_html: str) -> dict[str, str]:
-    payload: dict[str, str] = {}
-    for index in range(16):
-        text = ""
-        if index < len(sections):
-            text = _section_to_text(sections[index])
-        payload[f"part_{index}"] = text
+    payload: dict[str, str] = {f"part_{index}": "" for index in range(16)}
+
+    for section in sections:
+        if section.number is None:
+            key = "part_0"
+        elif 1 <= section.number <= 15:
+            key = f"part_{section.number}"
+        else:
+            continue
+
+        section_text = _section_to_text(section)
+        if section_text:
+            existing = payload.get(key, "")
+            payload[key] = "\n\n".join(
+                value for value in (existing.strip(), section_text) if value
+            )
 
     payload["part_16"] = blocks_html
     return payload
@@ -176,7 +188,7 @@ def _parse_response_payload(response: httpx.Response) -> Any:
         return response.text
 
 async def _call_ai_econom_service(
-    client: httpx.AsyncClient, PART_16_FILE_PATH: Path
+    client: httpx.AsyncClient, sections_file_path: Path
 ) -> Dict[str, Any]:
     result: Dict[str, Any] = {
         "service": "ai_econom",
@@ -186,14 +198,14 @@ async def _call_ai_econom_service(
         "error": None,
     }
 
-    if not PART_16_FILE_PATH.exists():
-        result["error"] = f"Budget file not found at {PART_16_FILE_PATH}"
+    if not sections_file_path.exists():
+        result["error"] = f"Sections file not found at {sections_file_path}"
         return result
 
     files = {
         "spec_file": (
-            PART_16_FILE_PATH.name,
-            PART_16_FILE_PATH.open("rb"),
+            sections_file_path.name,
+            sections_file_path.open("rb"),
             "application/json",
         ),
     }
@@ -217,7 +229,9 @@ async def _call_ai_econom_service(
     return result
 
 
-async def _call_ai_legal_service(client: httpx.AsyncClient, parts: Dict[str, str]) -> Dict[str, Any]:
+async def _call_ai_legal_service(
+    client: httpx.AsyncClient, sections_file_path: Path
+) -> Dict[str, Any]:
     result: Dict[str, Any] = {
         "service": "ai_legal",
         "url": AI_LEGAL_SERVICE_URL,
@@ -226,8 +240,20 @@ async def _call_ai_legal_service(client: httpx.AsyncClient, parts: Dict[str, str
         "error": None,
     }
 
+    if not sections_file_path.exists():
+        result["error"] = f"Sections file not found at {sections_file_path}"
+        return result
+
+    files = {
+        "file": (
+            sections_file_path.name,
+            sections_file_path.open("rb"),
+            "application/json",
+        ),
+    }
+
     try:
-        primary_response = await client.post(AI_LEGAL_SERVICE_URL, json=parts)
+        primary_response = await client.post(AI_LEGAL_SERVICE_URL, files=files)
         result["status"] = primary_response.status_code
         if primary_response.status_code == 200:
             result["response"] = _parse_response_payload(primary_response)
@@ -235,6 +261,11 @@ async def _call_ai_legal_service(client: httpx.AsyncClient, parts: Dict[str, str
             result["error"] = primary_response.text
     except Exception as exc:  # pragma: no cover - defensive external call guard
         result["error"] = str(exc)
+    finally:
+        try:
+            files["file"][1].close()
+        except Exception:
+            pass
 
     return result
 
@@ -283,11 +314,13 @@ async def dispatch_sections(file: UploadFile = File(...)) -> JSONResponse:
     parts = _extract_parts(file_name, content)
     saved_paths = _persist_sections(parts)
 
-    async with httpx.AsyncClient(timeout=HTTP_TIMEOUT) as client:
+    async with httpx.AsyncClient(timeout=HTTP_TIMEOUT, trust_env=False) as client:
         ai_econom_task = asyncio.create_task(
-            _call_ai_econom_service(client, saved_paths["part_16"])
+            _call_ai_econom_service(client, saved_paths["sections"])
         )
-        ai_legal_task = asyncio.create_task(_call_ai_legal_service(client, parts))
+        ai_legal_task = asyncio.create_task(
+            _call_ai_legal_service(client, saved_paths["sections"])
+        )
         contract_extractor_task = asyncio.create_task(
             _call_contract_extractor_service(client, parts)
         )

@@ -103,7 +103,7 @@ services:
     container_name: document_slicer
     environment:
       - AI_ECONOM_SERVICE_URL=http://ai_econom:10000/analyze
-      - AI_LEGAL_SERVICE_URL=http://ai_legal:8000/api/sections/full
+      - AI_LEGAL_SERVICE_URL=http://ai_legal:8000/api/sections/full-prepared
       - CONTRACT_EXTRACTOR_URL=http://contract_extractor:8085/qa/sections?plan=default
       - SERVICE_HTTP_TIMEOUT=${SERVICE_HTTP_TIMEOUT:-120}
     ports:
