@@ -8,6 +8,7 @@ import { DispatchResponse } from './types/api';
 
 const DEFAULT_SLICER_BASE_URL = 'http://localhost:8090';
 const DEFAULT_AI_BASE_URL = 'http://localhost:8092';
+const VITE_GATEWAY_URL = 'http://localhost:8099';
 
 export default function App() {
   const slicerBaseUrl = useMemo(() => {
@@ -28,11 +29,12 @@ export default function App() {
       <Sidebar activePage={activePage} onChange={setActivePage} />
 
       <main className="content">
-        {activePage === 'home' && (
+        {/* {activePage === 'home' && (
           <HomePage slicerBaseUrl={slicerBaseUrl} aiBaseUrl={aiBaseUrl} onSelectPage={setActivePage} />
         )}
         {activePage === 'slicer' && <SlicerPage baseUrl={slicerBaseUrl} />}
-        {activePage === 'ai-legal' && <AiLegalPage baseUrl={aiBaseUrl} />}
+        {activePage === 'ai-legal' && <AiLegalPage baseUrl={aiBaseUrl} />} */}
+        <SlicerPage baseUrl={VITE_GATEWAY_URL} />
       </main>
     </div>
   )

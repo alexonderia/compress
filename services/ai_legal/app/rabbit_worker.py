@@ -52,6 +52,15 @@ async def handle_message(message: aio_pika.IncomingMessage) -> None:
                 "html": result.html_report,
                 "inaccuracy": result.inaccuracy,
                 "red_flags": result.red_flags,
+                "debug": (
+                    result.debug.model_dump()
+                    if hasattr(result.debug, "model_dump")
+                    else (
+                        result.debug.__dict__
+                        if hasattr(result.debug, "__dict__")
+                        else str(result.debug)
+                    )
+                ),
             }
         except HTTPException as exc:
             response_payload = {"error": exc.detail}

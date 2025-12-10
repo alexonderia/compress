@@ -1,267 +1,189 @@
-import React, { useState } from 'react';
-import { Hero } from '../components/Hero';
-import { SpecificationBlock } from '../components/SpecificationBlock';
-import {
-  DispatchResponse,
-  DispatchServiceResult,
-  SpecificationJson,
-  SplitResponse,
-  SpecificationResponse,
-} from '../types/api';
-import { downloadJson } from '../utils/download';
+import React, { useState } from "react";
 
 interface SlicerPageProps {
-  baseUrl: string;
+  baseUrl: string; // например: http://localhost:8099
 }
 
 export function SlicerPage({ baseUrl }: SlicerPageProps) {
   const [file, setFile] = useState<File | null>(null);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [result, setResult] = useState<SplitResponse | null>(null);
-  const [dispatchFile, setDispatchFile] = useState<File | null>(null);
-  const [dispatchLoading, setDispatchLoading] = useState(false);
-  const [dispatchError, setDispatchError] = useState<string | null>(null);
-  const [dispatchResult, setDispatchResult] = useState<DispatchResponse | null>(null);
-  const [dispatchDuration, setDispatchDuration] = useState<number | null>(null);
-  const [expandedServices, setExpandedServices] = useState<Record<string, boolean>>({});
+  const [result, setResult] = useState<any | null>(null);
 
-  const formatDuration = (value: number | null) => {
-    if (typeof value !== 'number') return '—';
-    const totalSeconds = Math.floor(value / 1000);
-    const minutes = Math.floor(totalSeconds / 60);
-    const seconds = totalSeconds % 60;
-    return `${minutes} мин ${seconds.toString().padStart(2, '0')} сек`;
-  };
+  // состояние модалки предпросмотра HTML ai_legal
+  const [showHtmlModal, setShowHtmlModal] = useState(false);
+  const [htmlContent, setHtmlContent] = useState<string>("");
 
-  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
+  async function handleUpload(e: React.FormEvent) {
+    e.preventDefault();
     setError(null);
     setResult(null);
 
     if (!file) {
-      setError('Пожалуйста, выберите файл договора.');
+      setError("Выберите файл");
       return;
     }
 
     const formData = new FormData();
-    formData.append('file', file);
+    formData.append("file", file);
 
     try {
       setLoading(true);
-      const sectionsResponse = await fetch(`${baseUrl}/api/sections/split`, {
-        method: 'POST',
-        body: formData,
-      });
 
-      if (!sectionsResponse.ok) {
-        const message = await sectionsResponse.text();
-        throw new Error(message || 'Не удалось обработать файл');
-      }
-
-      const sectionsJson = (await sectionsResponse.json()) as SplitResponse;
-
-      let specJson: SpecificationResponse | null = null;
-      try {
-        const specResponse = await fetch(`${baseUrl}/api/specification/parse`, {
-          method: 'POST',
-          body: formData,
-        });
-
-        if (specResponse.ok) {
-          specJson = (await specResponse.json()) as SpecificationResponse;
-        }
-      } catch (specError) {
-        console.warn('Не удалось получить спецификацию:', specError);
-      }
-
-      setResult({ ...sectionsJson, ...(specJson ?? {}) });
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Неизвестная ошибка';
-      setError(message);
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleDispatchSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-    setDispatchError(null);
-    setDispatchResult(null);
-    setDispatchDuration(null);
-    setExpandedServices({});
-
-    if (!dispatchFile) {
-      setDispatchError('Пожалуйста, выберите файл для отправки в сервисы.');
-      return;
-    }
-
-    const formData = new FormData();
-    formData.append('file', dispatchFile);
-
-    const startedAt = performance.now();
-    try {
-      setDispatchLoading(true);
-      const response = await fetch(`${baseUrl}/api/sections/dispatch`, {
-        method: 'POST',
+      const response = await fetch(`${baseUrl}/upload`, {
+        method: "POST",
         body: formData,
       });
 
       if (!response.ok) {
-        const message = await response.text();
-        throw new Error(message || 'Не удалось получить ответы от сервисов');
+        const msg = await response.text();
+        throw new Error(msg || "Ошибка загрузки файла");
       }
 
-      const json = (await response.json()) as DispatchResponse;
-      setDispatchResult(json);
-      setDispatchDuration(performance.now() - startedAt);
-      setExpandedServices(
-        Object.keys(json).reduce<Record<string, boolean>>((acc, key) => {
-          acc[key] = true;
-          return acc;
-        }, {})
-      );
-    } catch (err) {
-      const message = err instanceof Error ? err.message : 'Неизвестная ошибка';
-      setDispatchError(message);
+      const json = await response.json();
+      setResult(json);
+    } catch (err: any) {
+      setError(err.message || "Ошибка");
     } finally {
-      setDispatchLoading(false);
-      setDispatchDuration(performance.now() - startedAt);
+      setLoading(false);
     }
-  };
+  }
+
+  function openAiLegalHtml() {
+    if (!result?.ai_legal?.html) {
+      setError("HTML из ai_legal отсутствует");
+      return;
+    }
+
+    setHtmlContent(result.ai_legal.html);
+    setShowHtmlModal(true);
+  }
 
   return (
-    <div className="page">
-      <Hero
-        title="Проверка сервиса нарезки документов"
-        subtitle="Подгрузите файл договора, чтобы получить секции part_0 – part_16 и извлечённую спецификацию через отдельный эндпойнт."
-      />
+    <div style={{ padding: 30 }}>
+      <h1>Загрузка документа</h1>
 
-      <form className="upload" onSubmit={handleSubmit}>
-        <label className="upload__field">
-          <span>Файл договора</span>
-          <input
-            type="file"
-            accept=".pdf,.doc,.docx,.txt,.rtf"
-            onChange={(event) => setFile(event.target.files?.[0] ?? null)}
-          />
-        </label>
-
-        <button className="upload__button" type="submit" disabled={loading}>
-          {loading ? 'Обработка…' : 'Отправить'}
+      <form onSubmit={handleUpload}>
+        <input
+          type="file"
+          accept=".pdf,.doc,.docx,.txt,.rtf"
+          onChange={(e) => setFile(e.target.files?.[0] ?? null)}
+        />
+        <br/>
+        <button type="submit" disabled={loading}>
+          {loading ? "Загрузка…" : "Отправить"}
         </button>
       </form>
 
-      <section className="results">
-        <div className="results__header">
-          <h2>Отправка секций в сервисы</h2>
-          <p className="results__subtitle">
-            После разбиения договора данные уходят в несколько сервисов параллельно.
-          </p>
-        </div>
-
-        <form className="upload" onSubmit={handleDispatchSubmit}>
-          <label className="upload__field">
-            <span>Файл договора</span>
-            <input
-              type="file"
-              accept=".pdf,.doc,.docx,.txt,.rtf"
-              onChange={(event) => setDispatchFile(event.target.files?.[0] ?? null)}
-            />
-          </label>
-
-          <button className="upload__button" type="submit" disabled={dispatchLoading}>
-            {dispatchLoading ? 'Отправка…' : 'Отправить в сервисы'}
-          </button>
-
-        </form>
-      </section>
-
-      {dispatchError && <div className="alert alert--error">{dispatchError}</div>}
-
-      {error && <div className="alert alert--error">{error}</div>}
+      {error && <div style={{ color: "red", marginTop: 20 }}>{error}</div>}
 
       {result && (
-        <section className="results">
-          <div className="results__header">
-            <h2>Результат секционирования</h2>
-            <div className="results__actions">
-              <button type="button" onClick={() => setResult(null)}>
-                Очистить
-              </button>
-              <button type="button" onClick={() => downloadJson(result, 'sections.json')}>
-                Скачать JSON
-              </button>
-            </div>
-          </div>
+        <div style={{ marginTop: 30 }}>
+          <h2>Ответ Gateway</h2>
 
-          <div className="results__grid">
-            {Object.entries(result)
-              .filter(([key]) => key.startsWith('part_'))
-              .map(([key, value]) => (
-                <article key={key} className="results__card">
-                  <div className="results__title">{key}</div>
-                  <pre className="results__text">{typeof value === 'string' ? value || '—' : '—'}</pre>
-                </article>
-              ))}
+          {/* Кнопка показа HTML ai_legal */}
+          {result?.ai_legal?.html && (
+            <button
+              onClick={openAiLegalHtml}
+              style={{
+                marginBottom: 20,
+                padding: "8px 16px",
+                background: "#4a80f0",
+                color: "white",
+                borderRadius: 6,
+                border: "none",
+                cursor: "pointer",
+              }}
+            >
+              Открыть HTML ai_legal
+            </button>
+          )}
 
-            {(() => {
-              const specJsonValue = (result as { spec_json?: SpecificationJson | null }).spec_json;
-              return specJsonValue ? <SpecificationBlock spec={specJsonValue} /> : null;
-            })()}
-          </div>
-        </section>
+          <pre
+            style={{
+              background: "#f0f0f0",
+              padding: 15,
+              borderRadius: 5,
+              maxWidth: "100%",
+              whiteSpace: "pre-wrap",     // ← перенос строк
+              wordBreak: "break-word",    // ← ломает длинные слова / URL / base64
+              overflowX: "visible",       // ← убираем горизонтальный скролл
+            }}
+          >
+            {JSON.stringify(result, null, 2)}
+          </pre>
+        </div>
       )}
 
-      {dispatchResult && (
-        <section className="results">
-          <div className="results__header">
-            <h2>Ответы сервисов</h2>
-            <div className="results__subtitle">
-              Время ответа сервера: {formatDuration(dispatchDuration)}
-            </div>
-            <div className="results__actions">
-              <button type="button" onClick={() => setDispatchResult(null)}>
-                Очистить
-              </button>
-              <button type="button" onClick={() => downloadJson(dispatchResult, 'dispatch.json')}>
-                Скачать JSON
-              </button>
-            </div>
-          </div>
-
-          <div className="results__grid">
-            {Object.entries(dispatchResult).map(([service, payload]) => {
-              const typedPayload = payload as DispatchServiceResult | null;
-              const resultBody = typedPayload?.response ?? typedPayload;
-              const isExpanded = expandedServices[service] ?? true;
-
-              return (
-                <article key={service} className="results__card">
-                  <div className="results__title-row">
-                    <div className="results__title">{service}</div>
-                    <button
-                      type="button"
-                      className="results__toggle"
-                      onClick={() =>
-                        setExpandedServices((prev) => ({
-                          ...prev,
-                          [service]: !isExpanded,
-                        }))
-                      }
-                    >
-                      {isExpanded ? 'Свернуть' : 'Развернуть'}
-                    </button>
-                  </div>
-                  <pre className={`results__text ${isExpanded ? 'results__text--expanded' : ''}`}>
-                    {resultBody ? JSON.stringify(resultBody, null, 2) : '—'}
-                  </pre>
-                </article>
-              );
-            })}
-          </div>
-        </section>
+      {/* Модалка предпросмотра */}
+      {showHtmlModal && (
+        <HtmlPreviewModal
+          html={htmlContent}
+          onClose={() => setShowHtmlModal(false)}
+        />
       )}
+    </div>
+  );
+}
+
+/* ------------------------ *
+ *  МОДАЛЬНОЕ ОКНО HTML
+ * ------------------------ */
+function HtmlPreviewModal({
+  html,
+  onClose,
+}: {
+  html: string;
+  onClose: () => void;
+}) {
+  return (
+    <div
+      style={{
+        position: "fixed",
+        inset: 0,
+        background: "rgba(0,0,0,0.65)",
+        display: "flex",
+        justifyContent: "center",
+        alignItems: "center",
+        zIndex: 9999,
+        padding: 20,
+      }}
+    >
+      <div
+        style={{
+          background: "white",
+          width: "90%",
+          height: "90%",
+          borderRadius: 8,
+          padding: 20,
+          overflow: "auto",
+          position: "relative",
+        }}
+      >
+        <button
+          onClick={onClose}
+          style={{
+            position: "absolute",
+            top: 15,
+            right: 15,
+            padding: "6px 12px",
+            background: "#ff4d4d",
+            border: "none",
+            color: "white",
+            borderRadius: 4,
+            cursor: "pointer",
+          }}
+        >
+          Закрыть
+        </button>
+
+        <div
+          style={{
+            padding: 10,
+          }}
+          dangerouslySetInnerHTML={{ __html: html }}
+        />
+      </div>
     </div>
   );
 }

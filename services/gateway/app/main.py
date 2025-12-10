@@ -7,12 +7,20 @@ import uuid
 
 import aio_pika
 from fastapi import FastAPI, File, HTTPException, UploadFile
+from fastapi.middleware.cors import CORSMiddleware
 
 from .config import Settings
 
 app = FastAPI(title="Gateway")
 settings = Settings()
 
+app.add_middleware(
+    CORSMiddleware,
+    allow_origins=["*"],  # или ["http://localhost:8091"]
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"],
+)
 
 async def _await_response(correlation_id: str, reply_queue: aio_pika.Queue, timeout: float):
     future = asyncio.get_event_loop().create_future()
