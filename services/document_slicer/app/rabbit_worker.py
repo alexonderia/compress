@@ -59,7 +59,7 @@ async def handle_upload(
         async with connection:
             channel = await connection.channel()
 
-            expected_services = ["ai_legal", "ai_econom", "contract_extractor"]
+            expected_services = ["ai_legal", "ai_econom", "ai_accountant", "contract_extractor"]
             await _publish_message(
                 channel,
                 settings.aggregation_queue,
@@ -85,6 +85,15 @@ async def handle_upload(
                 channel,
                 settings.ai_econom_queue,
                 {"task_id": correlation_id, "parts": ai_econom_parts},
+                correlation_id=correlation_id,
+                reply_to=reply_to,
+            )
+
+            ai_accountant_parts = {key: value for key, value in parts.items() if key in settings.ai_accountant_sections}
+            await _publish_message(
+                channel,
+                settings.ai_accountant_queue,
+                {"task_id": correlation_id, "parts": ai_accountant_parts},
                 correlation_id=correlation_id,
                 reply_to=reply_to,
             )

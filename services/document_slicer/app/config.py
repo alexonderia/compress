@@ -14,10 +14,12 @@ class Settings:
     upload_queue: str = field(default_factory=lambda: os.getenv("DOC_UPLOAD_QUEUE", "doc_upload"))
     ai_legal_queue: str = field(default_factory=lambda: os.getenv("AI_LEGAL_QUEUE", "ai_legal_parts"))
     ai_econom_queue: str = field(default_factory=lambda: os.getenv("AI_ECONOM_QUEUE", "ai_econom_parts"))
+    ai_accountant_queue: str = field(default_factory=lambda: os.getenv("AI_ACCOUNTANT_QUEUE", "ai_accountant_parts"))
     contract_extractor_queue: str = field(default_factory=lambda: os.getenv("CONTRACT_EXTRACTOR_QUEUE", "contract_extractor_parts"))
     aggregation_queue: str = field(default_factory=lambda: os.getenv("AGGREGATION_QUEUE", "aggregation_tasks"))
 
     ai_econom_sections: List[str] = field(default_factory=lambda: ["part_16"])
+    ai_accountant_sections: List[str] = field(default_factory=lambda: ["part_1", "part_4", "part_16"])
 
 
     ai_econom_url: str = field(

@@ -24,7 +24,7 @@ class Aggregator:
         self.states: dict[str, AggregationState] = {}
 
     def _merge_results(self, state: AggregationState) -> dict[str, Any]:
-        merged = {"ai_legal": {}, "ai_econom": {}, "sb_ai": {}, "contract_extractor": {}}
+        merged = {"ai_legal": {}, "ai_econom": {}, "ai_accountant": {}, "sb_ai": {}, "contract_extractor": {}}
         merged.update(state.results)
         return merged
 
