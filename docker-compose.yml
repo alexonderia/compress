@@ -142,6 +142,27 @@ services:
     networks:
       - app-network
 
+  ai_accountant:
+    build:
+      context: .
+      dockerfile: Dockerfile
+      target: ai_accountant
+    container_name: ai_accountant
+    environment:
+      <<: *ollama-model
+      OLLAMA_MODEL: ${AI_ACCOUNTANT_MODEL:-${OLLAMA_MODEL:-qwen3:14b-8k}}
+      OLLAMA_BASE_URL: http://ollama:11434
+      RABBITMQ_URL: amqp://guest:guest@rabbitmq/
+      AI_ACCOUNTANT_QUEUE: ai_accountant_parts
+      AGGREGATION_RESULTS_QUEUE: aggregation_results
+    command: python -m app.rabbit_worker
+    restart: unless-stopped
+    depends_on:
+      - ollama
+      - rabbitmq
+    networks:
+      - app-network
+
   ai_sb:
     build:
       context: .
@@ -171,6 +192,7 @@ services:
       - DOC_UPLOAD_QUEUE=doc_upload
       - AI_LEGAL_QUEUE=ai_legal_parts
       - AI_ECONOM_QUEUE=ai_econom_parts
+      - AI_ACCOUNTANT_QUEUE=ai_accountant_parts
       - CONTRACT_EXTRACTOR_QUEUE=contract_extractor_parts
       - AGGREGATION_QUEUE=aggregation_tasks
       - DATA_VOLUME_PATH=/data
@@ -212,6 +234,7 @@ services:
     environment:
       - VITE_SLICER_API_BASE_URL=http://localhost:8090
       - VITE_AI_LEGAL_API_BASE_URL=http://localhost:8092
+      - VITE_GATEWAY_URL=http://gateway:8099
     ports:
       - "8091:80"
     restart: unless-stopped

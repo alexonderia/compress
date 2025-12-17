@@ -66,6 +66,19 @@ COPY services/ai_legal/app /app/app
 EXPOSE 8000
 CMD ["uvicorn", "app.main:app", "--host", "0.0.0.0", "--port", "8000"]
 
+# ---------------
+# AI accountant
+# ---------------
+FROM python-base AS ai_accountant
+WORKDIR /app
+
+COPY services/ai_accountant/requirements.txt /tmp/requirements.txt
+RUN pip install -r /tmp/requirements.txt
+
+COPY services/ai_accountant /app
+
+EXPOSE 8001
+CMD ["uvicorn", "main:app", "--host", "0.0.0.0", "--port", "8001"]
 # -----------------
 # Document slicer
 # -----------------

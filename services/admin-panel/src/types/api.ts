@@ -31,3 +31,9 @@ export type DispatchServiceResult = {
 };
 
 export type DispatchResponse = Record<string, DispatchServiceResult>;
+
+export type GatewayResponse = {
+  task_id?: string;
+  result?: Record<string, unknown>;
+  [key: string]: unknown;
+};
