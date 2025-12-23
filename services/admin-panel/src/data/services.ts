@@ -2,95 +2,63 @@ import { ServiceDescriptor } from '../types/services';
 
 export const services: ServiceDescriptor[] = [
   {
-    key: 'aggregator',
-    name: 'Aggregator',
-    summary: 'Оркеструет запросы и собирает ответы из всех сервисов.',
-    focus: 'Принимает задания от Gateway, раскладывает их по исполнителям и возвращает единый ответ.',
-    endpoints: [
-      {
-        id: 'aggregator-health',
-        method: 'GET',
-        path: '/health',
-        description: 'Быстрая проверка готовности агрегатора.',
-      },
-      {
-        id: 'aggregator-dispatch',
-        method: 'POST',
-        path: '/dispatch',
-        description: 'Отправляет задание сразу в несколько сервисов и возвращает task_id.',
-        sampleBody: {
-          task_id: 'demo-task',
-          services: ['ai_legal', 'ai_econom', 'contract_extractor'],
-          payload: { text: 'Проверьте, что договор корректен' },
-        },
-      },
-      {
-        id: 'aggregator-tasks',
-        method: 'GET',
-        path: '/tasks/demo-task',
-        description: 'Получает статус задачи и ответы по конкретному task_id.',
-      },
-    ],
-    notes: [
-      'Можно использовать с task_id из Gateway, чтобы проверить прогресс.',
-      'Сервис возвращает полную трассировку задержек по каждому исполнителю.',
-    ],
-  },
-  {
     key: 'ai_legal',
     name: 'AI Legal',
     summary: 'Юридическая проверка договоров и документов.',
-    focus: 'Анализирует риски, проверяет корректность формулировок и формирует HTML‑отчёт.',
+    focus: 'Анализирует риски, проверяет формулировки и формирует HTML‑отчёт по секциям договора.',
     endpoints: [
       {
         id: 'ai-legal-health',
         method: 'GET',
-        path: '/legal/health',
-        description: 'Возвращает, готов ли сервис к анализу.',
+        path: '/api/sections/health',
+        description: 'Состояние сервиса и доступность модели Ollama.',
       },
       {
         id: 'ai-legal-evaluate',
         method: 'POST',
-        path: '/legal/evaluate',
-        description: 'Запускает юридическую экспертизу текста или файла.',
+        path: '/api/sections/full-prepared',
+        description: 'Загрузка файла с готовыми секциями (из document_slicer) для анализа.',
+      },
+      {
+        id: 'ai-legal-full',
+        method: 'POST',
+        path: '/api/sections/full',
+        description: 'Передача секций в теле запроса для юридического анализа.',
         sampleBody: {
-          contract_text: 'Укажите ключевые условия договора для проверки',
-          language: 'ru',
-          include_score: true,
+          part_1: 'Предмет договора...',
+          part_4: 'Порядок оплаты...',
+          part_16: 'Цена и НДС...'
         },
       },
     ],
-    notes: [
-      'Сервис возвращает score и HTML‑отчёт при необходимости.',
-      'Сохраняет UID задачи, чтобы сопоставлять отчёты с исходными файлами.',
-    ],
+    notes: ['Для /api/sections/full-prepared требуется multipart/form-data с файлом секций.'],
   },
   {
     key: 'ai_econom',
     name: 'AI Econom',
     summary: 'Финансовые и экономические проверки.',
-    focus: 'Проверяет бюджетные рамки, согласованность сумм и экономические риски.',
+    focus: 'Проверяет бюджетные рамки, согласованность сумм и экономические риски из спецификации.',
     endpoints: [
       {
-        id: 'ai-econom-health',
+        id: 'ai-econom-root',
         method: 'GET',
-        path: '/econom/health',
-        description: 'Сигнал здоровья сервиса.',
+        path: '/',
+        description: 'Быстрая проверка работы API и подсказка по доступным маршрутам.',
       },
       {
-        id: 'ai-econom-score',
+        id: 'ai-econom-analyze',
         method: 'POST',
-        path: '/econom/score',
-        description: 'Расчёт финансового скоринга и выявление отклонений.',
-        sampleBody: {
-          contract_total: 1500000,
-          currency: 'RUB',
-          customer: 'ООО «Вектор»',
-          include_recommendations: true,
-        },
+        path: '/analyze',
+        description: 'Полный анализ спецификации (sections.json) с проверкой бюджетов.',
+      },
+      {
+        id: 'ai-econom-parse',
+        method: 'POST',
+        path: '/parse-spec',
+        description: 'Только парсинг sections.json без проверки бюджетов.',
       },
     ],
-    notes: ['Рекомендуется передавать сумму в базовой валюте и заполнять customer для логирования.'],
+    notes: ['Все POST-эндпойнты принимают файл JSON через multipart/form-data.'],
   },
   {
     key: 'ai_accountant',
@@ -101,22 +69,18 @@ export const services: ServiceDescriptor[] = [
       {
         id: 'ai-accountant-health',
         method: 'GET',
-        path: '/accountant/health',
-        description: 'Убедитесь, что бухгалтерские проверки доступны.',
+        path: '/api/accountant/health',
+        description: 'Готовность сервиса и доступность модели Ollama.',
       },
       {
         id: 'ai-accountant-validate',
         method: 'POST',
-        path: '/accountant/validate',
-        description: 'Проверяет корректность позиций спецификации и возвращает сверку.',
+        path: '/api/accountant/analyze',
+        description: 'Проверяет корректность ключевых частей спецификации (part_1, part_4, part_16).',
         sampleBody: {
-          spec_json: {
-            items: [
-              { name: 'Поставка серверов', qty: 2, unit: 'шт', price: 250000, amount: 500000, country: 'RU' },
-            ],
-            total: 500000,
-            vat: 0.2,
-          },
+          part_1: 'Описание предмета договора...',
+          part_4: 'Порядок оплаты...',
+          part_16: 'Цена и НДС...'
         },
       },
     ],
@@ -126,52 +90,53 @@ export const services: ServiceDescriptor[] = [
     key: 'ai_sb',
     name: 'AI SB',
     summary: 'Проверка служебной безопасности и KYC.',
-    focus: 'Сверяет контрагентов по санкционным листам и валидирует паспорта.',
-    endpoints: [
-      {
-        id: 'ai-sb-health',
-        method: 'GET',
-        path: '/sb/health',
-        description: 'Служебное состояние сервиса.',
-      },
-      {
-        id: 'ai-sb-kyc',
-        method: 'POST',
-        path: '/sb/kyc',
-        description: 'Проверка контрагента по базам KYC/AML.',
-        sampleBody: {
-          company_name: 'ООО «Вектор»',
-          inn: '7708123456',
-          passport: '1234 567890',
-        },
-      },
-    ],
-    notes: ['Чувствительные данные не логируются — ответ содержит обезличенные ссылки на источники.'],
+    focus: 'Работает через очередь sb_queue и публикует результат в aggregation_results.',
+    endpoints: [],
+    notes: ['HTTP-эндпойнтов нет: сервис запускается как потребитель RabbitMQ.'],
   },
   {
     key: 'contract_extractor',
     name: 'Contract Extractor',
     summary: 'Достаёт факты из договоров.',
-    focus: 'Извлекает сроки, суммы и ключевые атрибуты из договоров и актов.',
+    focus: 'Извлекает сроки, суммы и ключевые атрибуты из секций договора.',
     endpoints: [
       {
         id: 'contract-extractor-health',
         method: 'GET',
-        path: '/extractor/health',
+        path: '/healthz',
         description: 'Быстрая диагностика доступности.',
       },
       {
-        id: 'contract-extractor-run',
+        id: 'contract-extractor-qa',
         method: 'POST',
-        path: '/extractor/run',
-        description: 'Извлечение структурированных данных из текста.',
+        path: '/qa/sections',
+        description: 'Запуск плана QA над секциями договора.',
         sampleBody: {
-          contract_text: 'Поставщик передает оборудование в течение 30 дней...',
-          expected_fields: ['dates', 'parties', 'payments'],
+          sections: {
+            part_1: 'Предмет договора...',
+            part_4: 'Порядок оплаты...'
+          }
         },
       },
+      {
+        id: 'contract-extractor-run-default',
+        method: 'POST',
+        path: '/qa/run-default',
+        description: 'Запуск QA с предустановленным планом default.',
+        sampleBody: {
+          sections: {
+            part_11: 'Срок действия договора до 31.12.2025'
+          }
+        },
+      },
+      {
+        id: 'contract-extractor-sample',
+        method: 'GET',
+        path: '/qa/sample-payload',
+        description: 'Пример полезной нагрузки для /qa/sections.',
+      },
     ],
-    notes: ['Вернёт извлечённые атрибуты и confidence по каждому полю.'],
+    notes: ['Для /qa/sections и /qa/run-default требуется JSON с полем sections.'],
   },
   {
     key: 'document_slicer',
@@ -186,18 +151,43 @@ export const services: ServiceDescriptor[] = [
         description: 'Проверка готовности сервиса.',
       },
       {
+        id: 'document-slicer-events',
+        method: 'GET',
+        path: '/api/timer/events',
+        description: 'SSE-поток прогресса для /api/sections/dispatch.',
+      },
+      {
         id: 'document-slicer-split',
         method: 'POST',
-        path: '/slicer/split',
-        description: 'Разбивает текст по смысловым блокам и возвращает массив фрагментов.',
-        sampleBody: {
-          text: 'Длинный документ...',
-          language: 'ru',
-          max_chunk_size: 800,
-        },
+        path: '/api/sections/split',
+        description: 'Нарезка секций из загруженного файла (multipart/form-data).',
+      },
+      {
+        id: 'document-slicer-test',
+        method: 'POST',
+        path: '/test',
+        description: 'Простая нарезка без публикации в очереди.',
+      },
+      {
+        id: 'document-slicer-dispatch',
+        method: 'POST',
+        path: '/api/sections/dispatch',
+        description: 'Нарезка секций и отправка задач в очереди RabbitMQ.',
+      },
+      {
+        id: 'document-slicer-dispatch-alias',
+        method: 'POST',
+        path: '/api/dispatcher',
+        description: 'Алиас для dispatch секций с тем же поведением.',
+      },
+      {
+        id: 'document-slicer-time',
+        method: 'GET',
+        path: '/time',
+        description: 'Страница с таймером для визуализации прогресса.',
       },
     ],
-    notes: ['Учитывайте, что max_chunk_size задаётся в символах.'],
+    notes: ['Все POST-методы принимают файл через multipart/form-data.'],
   },
   {
     key: 'budget_service',
@@ -206,24 +196,27 @@ export const services: ServiceDescriptor[] = [
     focus: 'Сверяет проект с лимитами и сигнализирует о превышениях.',
     endpoints: [
       {
-        id: 'budget-service-health',
+        id: 'budget-service-root',
         method: 'GET',
-        path: '/budget/health',
-        description: 'Служебная проверка доступности.',
+        path: '/',
+        description: 'Служебная проверка доступности и подсказки по маршрутам.',
       },
       {
         id: 'budget-service-check',
         method: 'POST',
-        path: '/budget/check',
-        description: 'Проверка бюджета по проекту и подразделению.',
+        path: '/upload-budget',
+        description: 'Загрузка budget.json из 1С (текстовое поле с JSON).',
         sampleBody: {
-          project_code: 'PRJ-42',
-          department: 'R&D',
-          amount: 1200000,
-          currency: 'RUB',
+          budget_json: '[{"КатегорияБюджета":"ИТ","ДоступныйЛимит":1000000}]'
         },
       },
+      {
+        id: 'budget-service-get',
+        method: 'GET',
+        path: '/get-budget',
+        description: 'Получить текущий budget.json.',
+      }
     ],
-    notes: ['Возвращает превышения и рекомендуемые корректировки.'],
+    notes: ['/upload-budget принимает text/plain: передайте JSON как строку.'],
   },
 ];

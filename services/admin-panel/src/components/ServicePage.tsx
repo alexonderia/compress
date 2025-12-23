@@ -21,7 +21,7 @@ export function ServicePage({ service, gatewayUrl }: ServicePageProps) {
           <div>
             <p className="eyebrow">Документация сервиса</p>
             <h2>{service.summary}</h2>
-            <p className="muted">Настройте путь, отправьте запрос и проверьте, как отвечает сервис.</p>
+            <p className="muted">Здесь собраны описания эндпойнтов и примеры вызовов.</p>
           </div>
           <div className="chip chip--ghost">{service.endpoints.length} эндпойнта</div>
         </div>
